@@ -12,3 +12,32 @@ No Node.js required.
 If the email already exists in Firebase Authentication, do not register it again. Use Sign in. If the Auth account exists but the CareHomeOS Firestore profile is missing, the app will show the account-recovery setup.
 
 If sign-in fails, click **Having trouble signing in?** to see the exact GitHub Pages hostname that must be added to Firebase Authentication → Authorised domains.
+
+
+## Important: Save button fix
+
+This build fixes a browser HTML issue in the previous version where JavaScript containing quotation marks was inserted directly into a quoted `onclick` attribute. That caused modal Save buttons to appear clickable but not execute their Firestore write function.
+
+The button helper now HTML-escapes the complete JavaScript handler, so Add/Save/Edit actions execute correctly.
+
+## If a Firebase write is rejected
+
+The application now opens a visible Firebase error dialog rather than silently doing nothing. It also includes a **Test database** button on the Overview page.
+
+If you see `permission-denied`, publish the included `firestore.rules` in:
+Firebase Console → Firestore Database → Rules → Publish.
+
+The authenticated user must have a member document at:
+`organisations/{organisationId}/members/{uid}`
+
+The application creates this during account setup.
+
+## No Node.js
+
+This package remains browser-only:
+- GitHub/GitHub Pages for the frontend
+- Firebase Authentication for accounts
+- Cloud Firestore for data
+- Firestore Security Rules for permissions
+
+No npm, Node.js, Firebase CLI or Cloud Functions are required.

@@ -41,7 +41,7 @@ const statusClass=s=>{s=String(s||"").toLowerCase();if(s.includes("overdue")||s.
 function toast(m){const t=document.createElement("div");t.className="toast";t.textContent=m;document.body.appendChild(t);requestAnimationFrame(()=>t.classList.add("show"));setTimeout(()=>{t.classList.remove("show");setTimeout(()=>t.remove(),250)},2400)}
 function showModal(html){const b=document.createElement("div");b.className="modal-back open";b.id="modal";b.innerHTML=`<div class="modal">${html}</div>`;document.body.appendChild(b);b.addEventListener("click",e=>{if(e.target===b)b.remove()})}
 function closeModal(){document.getElementById("modal")?.remove()}
-function btn(label,onclick,primary=false){return `<button class="btn ${primary?"primary":""}" onclick="${onclick}">${label}</button>`}
+function btn(label,onclick,primary=false){return `<button type="button" class="btn ${primary?"primary":""}" onclick="${esc(onclick)}">${esc(label)}</button>`}
 function pageHead(title,desc,actions=""){return `<div class="head"><div><h1>${title}</h1><p>${desc}</p></div><div class="actions">${actions}</div></div>`}
 function status(s){return `<span class="status ${statusClass(s)}">${esc(s)}</span>`}
 function roleLabel(r){return ({owner:"Account Owner",manager:"Registered Manager",senior:"Senior Care Worker",care_worker:"Care Worker"}[r]||r)}
@@ -235,24 +235,61 @@ async function writeAudit(action,collectionName,recordId,recordLabel,before=null
 }
 async function createRecord(col,payload,message,label){
  try{
+   if(!state.user||!state.org?.id) throw new Error("Your CareHomeOS workspace is not ready. Sign out and sign back in.");
    const ref=await addDoc(collection(db,`organisations/${state.org.id}/${col}`),{...payload,createdBy:state.user.uid,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
    try{await writeAudit("Created",col,ref.id,label||payload.name||payload.item||payload.course||payload.personName||ref.id,null,payload,message||"");}catch(a){console.warn("Change history entry failed",a)}
    closeModal();toast(message);
- }catch(e){toast(prettyError(e))}
+ }catch(e){
+   console.error("CareHomeOS create error", {collection:col,error:e});
+   showDatabaseError("Saving failed", e, col);
+ }
 }
 async function editRecord(col,id,payload,message,label){
  try{
+   if(!state.user||!state.org?.id) throw new Error("Your CareHomeOS workspace is not ready. Sign out and sign back in.");
    const ref=doc(db,`organisations/${state.org.id}/${col}/${id}`);
    const snap=await getDoc(ref);
    const before=snap.exists()?snap.data():null;
+   if(!before) throw new Error("The record no longer exists in Firestore. Refresh the page and try again.");
    await updateDoc(ref,{...payload,updatedBy:state.user.uid,updatedAt:serverTimestamp()});
    try{await writeAudit("Updated",col,id,label||before?.name||before?.item||before?.course||before?.personName||id,before,payload,message||"");}catch(a){console.warn("Change history entry failed",a)}
    closeModal();toast(message);
- }catch(e){toast(prettyError(e))}
+ }catch(e){
+   console.error("CareHomeOS update error", {collection:col,id,error:e});
+   showDatabaseError("Saving failed", e, col);
+ }
 }
+function showDatabaseError(title,e,collectionName){
+  const raw=e?.code ? `${e.code}: ${e.message||""}` : (e?.message||String(e||"Unknown error"));
+  const friendly=prettyError(e);
+  showModal(`<h2>${esc(title)}</h2>
+    <p class="sub">CareHomeOS could not write this record to Firebase Firestore.</p>
+    <div class="notice warn"><strong>${esc(friendly)}</strong></div>
+    <div class="panel" style="padding:12px;background:#fafbfc;border:1px solid var(--line);border-radius:8px">
+      <strong>Technical detail</strong>
+      <p class="audit" style="word-break:break-word">${esc(raw)}</p>
+      <p class="audit">Collection: <b>${esc(collectionName)}</b></p>
+    </div>
+    <div class="modal-actions">${btn("Close","closeModal()")}${btn("Firebase diagnostics","showDatabaseDiagnostics()",true)}</div>`);
+}
+window.showDatabaseDiagnostics=async()=>{
+  try{
+    const org=state.org?.id||"none";
+    const member=state.user?.uid||"none";
+    showModal(`<h2>Firebase diagnostics</h2><p class="sub">Current CareHomeOS connection.</p>
+      <div class="list">
+        <div class="row"><div class="rowmain"><strong>Project</strong><small>carehomeos</small></div><span class="status green">Loaded</span></div>
+        <div class="row"><div class="rowmain"><strong>Signed-in user</strong><small>${esc(state.user?.email||"none")}</small></div><span class="status ${state.user?"green":"red"}">${state.user?"Signed in":"Not signed in"}</span></div>
+        <div class="row"><div class="rowmain"><strong>Organisation</strong><small>${esc(state.org?.name||"none")} · ${esc(org)}</small></div><span class="status ${state.org?"green":"red"}">${state.org?"Loaded":"Missing"}</span></div>
+        <div class="row"><div class="rowmain"><strong>Role</strong><small>${esc(roleLabel(state.role)||"none")}</small></div><span class="status blue">${esc(state.role||"none")}</span></div>
+      </div>
+      <div class="notice info"><strong>Firestore path:</strong> organisations/${esc(org)}/&lt;collection&gt;/&lt;record&gt;</div>
+      <div class="modal-actions">${btn("Close","closeModal()")}</div>`);
+  }catch(e){toast(prettyError(e))}
+};
 
 const views={
-dashboard:()=>pageHead("Good morning, "+esc(state.profile.name.split(" ")[0]),"Live provider overview · "+esc(state.org.name),can("rotaWrite")?btn("+ New record","quickCreate()",true):"")+`
+dashboard:()=>pageHead("Good morning, "+esc(state.profile.name.split(" ")[0]),"Live provider overview · "+esc(state.org.name),btn("Test database","testFirestore()")+ (can("rotaWrite")?btn("+ New record","quickCreate()",true):""))+`
 <div class="grid stats"><div class="card stat"><label>People receiving care</label><strong>${data("people").length}</strong><span class="delta good">Live database</span><div class="stat-icon">◉</div></div><div class="card stat"><label>Active staff</label><strong>${data("staff").filter(x=>x.status==="Active").length}</strong><span class="delta good">Live database</span><div class="stat-icon">♙</div></div><div class="card stat"><label>Open incidents</label><strong>${data("incidents").filter(x=>x.status!=="Closed").length}</strong><span class="delta warn">Needs oversight</span><div class="stat-icon">!</div></div><div class="card stat"><label>Compliance</label><strong>94%</strong><span class="delta good">Assurance score</span><div class="stat-icon">◈</div></div></div>
 <div class="grid two"><div class="card panel"><div class="panel-head"><h3>Today's rota</h3><button class="link" onclick="go('rota')">Open rota →</button></div><div class="list">${data("rota").slice(0,5).map(s=>`<div class="row"><div class="rowmain"><strong>${esc(s.date)} · ${esc(s.time)}</strong><small>${esc(s.unit)} · ${esc(s.staffName||"Unassigned")}</small></div>${status(s.status)}</div>`).join("")||`<div class="empty">No shifts yet.</div>`}</div></div><div class="card panel"><div class="panel-head"><h3>Attention required</h3><button class="link" onclick="go('compliance')">See all →</button></div><div class="notice warn"><strong>${data("careplans").filter(x=>x.status==="Review due").length} care plans</strong> need review.</div><div class="notice warn"><strong>${data("training").filter(x=>x.status==="Overdue").length} training items</strong> are overdue.</div><div class="notice info"><strong>${data("rota").filter(x=>x.status==="Open").length} shifts</strong> currently have no cover.</div></div></div>`,
 people:()=>pageHead("People","Manage people receiving care, risks and care records.",can("peopleWrite")?btn("+ Add person","addPerson()",true):"")+`<div class="card table-card"><div class="table-tools"><input class="search" placeholder="Search people..." oninput="filterRows(this.value)"></div><div id="table">${table(["Person","Room","Key needs","Risk","Care plan",""],data("people").map(p=>`<tr><td>${personCell(p.name,"DOB "+fmtDate(p.dob))}</td><td>${esc(p.room)}</td><td>${esc(p.needs)}</td><td>${status(p.risk+" risk")}</td><td>${esc(p.planStatus||"Current")}</td><td><button class="btn small" onclick="viewPerson('${p.id}')">Open</button></td></tr>`))}</div></div>`,
@@ -295,6 +332,13 @@ window.saveRole=async uid=>{try{await updateDoc(doc(db,`organisations/${state.or
 
 window.globalSearch=()=>showModal(`<h2>Global search</h2><p class="sub">Search the live workspace.</p><div class="field"><input id="gs" oninput="runSearch(this.value)" placeholder="Search people, staff, incidents, documents..."></div><div id="results" style="margin-top:12px"></div><div class="modal-actions">${btn("Close","closeModal()")}</div>`);
 window.runSearch=q=>{const n=q.toLowerCase();const items=[...data("people").map(x=>({t:"Person",n:x.name,d:x.needs,a:`viewPerson('${x.id}')`})),...data("staff").map(x=>({t:"Staff",n:x.name,d:x.role,a:`viewStaff('${x.id}')`})),...data("incidents").map(x=>({t:"Incident",n:x.type+" · "+x.personName,d:x.status,a:`viewIncident('${x.id}')`})),...data("documents").map(x=>({t:"Document",n:x.name,d:x.category,a:`viewDocument('${x.id}')`}))].filter(x=>(x.n+" "+x.d).toLowerCase().includes(n));$("#results").innerHTML=items.length?`<div class="list">${items.slice(0,12).map(x=>`<div class="row"><div class="rowmain"><strong>${esc(x.n)}</strong><small>${esc(x.t)} · ${esc(x.d)}</small></div><button class="btn small" onclick="closeModal();${x.a}">Open</button></div>`).join("")}</div>`:`<div class="empty">No matches.</div>`};
+window.testFirestore=async()=>{
+  try{
+    if(!state.org?.id) throw new Error("No organisation is loaded.");
+    await getDoc(doc(db,`organisations/${state.org.id}`));
+    toast("Firestore connection is working");
+  }catch(e){showDatabaseError("Firestore connection test failed",e,"organisations/"+(state.org?.id||"unknown"))}
+};
 window.notifications=()=>showModal(`<h2>Notifications</h2><p class="sub">Current workspace alerts.</p><div class="notice warn">${data("rota").filter(x=>x.status==="Open").length} open shifts</div><div class="notice warn">${data("training").filter(x=>x.status==="Overdue").length} overdue training items</div><div class="notice info">${data("careplans").filter(x=>x.status==="Review due").length} care plans due for review</div><div class="modal-actions">${btn("Close","closeModal()")}</div>`);
 window.filterRows=q=>document.querySelectorAll(".table tbody tr").forEach(r=>r.style.display=r.innerText.toLowerCase().includes(q.toLowerCase())?"":"none");
 window.exportReport=()=>{const report={provider:state.org.name,generated:new Date().toISOString(),people:data("people").length,staff:data("staff").length,openIncidents:data("incidents").filter(x=>x.status!=="Closed").length,openShifts:data("rota").filter(x=>x.status==="Open").length};const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:"application/json"}));a.download="carehomeos-management-snapshot.json";a.click();URL.revokeObjectURL(a.href)};
