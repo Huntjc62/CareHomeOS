@@ -31,7 +31,13 @@ const navItems=[
   ["compliance","◈","Compliance"],["documents","▤","Documents"],["reports","▥","Reports"],
   ["audit","◌","Audit history"],["team","♙","Team & permissions"]
 ];
-let state={user:null,profile:null,org:null,role:null,view:"dashboard",unsub:[],data:{}};
+const PAGE_VIEW_MAP={
+  "overview":"dashboard","people":"people","staff":"staff","rota-shifts":"rota",
+  "care-plans":"careplans","incidents":"incidents","training":"training",
+  "compliance":"compliance","documents":"documents","reports":"reports",
+  "audit-history":"audit","team-permissions":"team","settings":"settings"
+};
+let state={user:null,profile:null,org:null,role:null,view:PAGE_VIEW_MAP[window.CAREHOMEOS_PAGE]||"dashboard",unsub:[],data:{}};
 
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
@@ -197,7 +203,7 @@ function showFirebaseSetupError(e){
 }
 function mountApp(){
  document.body.innerHTML=`<div id="shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">C</div><div><strong>CareHomeOS</strong><small>Care operations</small></div></div><div class="workspace"><span class="eyebrow">WORKSPACE</span><button class="workspace-btn"><span class="avatar sm">${initials(state.org.name)}</span><b>${esc(state.org.name)}</b><span>⌄</span></button></div><nav class="nav">${navItems.map(x=>`<button data-view="${x[0]}"><span>${x[1]}</span>${x[2]}</button>`).join("")}</nav><div class="side-foot"><div class="help"><span class="avatar sm">?</span><div><strong>Need help?</strong><small>Support centre</small></div></div><div class="user"><span class="avatar">${initials(state.profile.name)}</span><div><strong>${esc(state.profile.name)}</strong><small>${roleLabel(state.role)}</small></div><button onclick="logout()">↗</button></div></div></aside><main class="main"><header class="top"><button class="icon mobile" id="mobileMenu">☰</button><div class="crumb"><span>${esc(state.org.name)}</span><b>/</b><strong id="title">Overview</strong></div><div class="top-actions"><button class="icon" onclick="globalSearch()">⌕</button><button class="icon bell" onclick="notifications()">♧<i>4</i></button><span class="date" id="today"></span></div></header><section class="content" id="content"></section></main></div>`;
- document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>go(b.dataset.view));$("#mobileMenu").onclick=()=>$(".sidebar").classList.toggle("open");
+ document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>goPage(b.dataset.view));$("#mobileMenu").onclick=()=>$(".sidebar").classList.toggle("open");
  render();$("#today").textContent=new Date().toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short",year:"numeric"});
 }
 function subscribeAll(){
@@ -210,11 +216,20 @@ function subscribeAll(){
  });
 }
 const data=k=>state.data[k]||[];
+const PAGE_FILES={
+  dashboard:"overview.html",people:"people.html",staff:"staff.html",rota:"rota-shifts.html",
+  careplans:"care-plans.html",incidents:"incidents.html",training:"training.html",
+  compliance:"compliance.html",documents:"documents.html",reports:"reports.html",
+  audit:"audit-history.html",team:"team-permissions.html",settings:"settings.html"
+};
+function goPage(view){ if(PAGE_FILES[view]) window.location.href=PAGE_FILES[view]; else go(view); }
+window.goPage=goPage;
+
 function go(v){state.view=v;render();window.scrollTo(0,0)}
 window.go=go;
 
 function render(){
- const titles={dashboard:"Overview",people:"People",staff:"Staff",rota:"Rota & shifts",careplans:"Care plans",incidents:"Incidents",training:"Training",compliance:"Compliance",documents:"Documents",reports:"Reports",audit:"Audit history",team:"Team & permissions"};
+ const titles={dashboard:"Overview",people:"People",staff:"Staff",rota:"Rota & shifts",careplans:"Care plans",incidents:"Incidents",training:"Training",compliance:"Compliance",documents:"Documents",reports:"Reports",audit:"Audit history",team:"Team & permissions",settings:"Settings"};
  $("#title").textContent=titles[state.view]||"Overview";document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.view===state.view));
  const f=views[state.view]||views.dashboard;$("#content").innerHTML=f();
 }
