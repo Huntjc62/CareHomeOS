@@ -47,7 +47,12 @@ const statusClass=s=>{s=String(s||"").toLowerCase();if(s.includes("overdue")||s.
 function toast(m){const t=document.createElement("div");t.className="toast";t.textContent=m;document.body.appendChild(t);requestAnimationFrame(()=>t.classList.add("show"));setTimeout(()=>{t.classList.remove("show");setTimeout(()=>t.remove(),250)},2400)}
 function showModal(html){const b=document.createElement("div");b.className="modal-back open";b.id="modal";b.innerHTML=`<div class="modal">${html}</div>`;document.body.appendChild(b);b.addEventListener("click",e=>{if(e.target===b)b.remove()})}
 function closeModal(){document.getElementById("modal")?.remove()}
-function btn(label,onclick,primary=false){return `<button type="button" class="btn ${primary?"primary":""}" onclick="${esc(onclick)}">${esc(label)}</button>`}
+function btn(label,onclick,primary=false){
+  const id="action-"+Math.random().toString(36).slice(2,10);
+  window.__careHomeActions=window.__careHomeActions||{};
+  window.__careHomeActions[id]=onclick;
+  return `<button type="button" class="btn ${primary?"primary":""}" data-carehome-action="${id}">${esc(label)}</button>`;
+}
 function pageHead(title,desc,actions=""){return `<div class="head"><div><h1>${title}</h1><p>${desc}</p></div><div class="actions">${actions}</div></div>`}
 function status(s){return `<span class="status ${statusClass(s)}">${esc(s)}</span>`}
 function roleLabel(r){return ({owner:"Account Owner",manager:"Registered Manager",senior:"Senior Care Worker",care_worker:"Care Worker"}[r]||r)}
@@ -71,8 +76,8 @@ function renderAuth(mode){
   <div class="field"><label>Email</label><input id="email" type="email" autocomplete="email"></div>
   <div class="field" style="margin-top:10px"><label>Password</label><input id="password" type="password" autocomplete="current-password"></div>
   <div id="authError" class="error"></div><div class="login-actions">${btn("Sign in","doSignIn()",true)}</div>
-  <button class="link" style="margin-top:12px" onclick="resetPassword()">Forgotten password?</button>
-  <button class="link" style="margin-top:8px" onclick="showAuthDiagnostics()">Having trouble signing in?</button>`:
+  <button class="link" style="margin-top:12px" data-carehome-legacy-action="legacy-3446982">Forgotten password?</button>
+  <button class="link" style="margin-top:8px" data-carehome-legacy-action="legacy-1965863">Having trouble signing in?</button>`:
   `<div class="field"><label>Your name</label><input id="name"></div>
   <div class="field" style="margin-top:10px"><label>Work email</label><input id="email" type="email"></div>
   <div class="field" style="margin-top:10px"><label>Password</label><input id="password" type="password" minlength="8"></div>
@@ -182,7 +187,7 @@ async function loadProfile(){
  }
 }
 function showAccountRecovery(u){
- document.body.innerHTML=`<div class="login"><div class="login-box"><div class="login-brand"><div class="brand-mark">C</div><div><h1>CareHomeOS</h1><small>Finish account setup</small></div></div><p>Your Firebase login is valid, but your CareHomeOS workspace profile has not been completed.</p><div class="notice warn">This can happen if account creation was interrupted while the Firestore records were being created.</div><div class="field"><label>Organisation name</label><input id="recoverOrg" placeholder="e.g. Haven Care Group"></div><div class="field" style="margin-top:10px"><label>Service type</label><select id="recoverType"><option>Care home</option><option>Home care</option><option>Supported living</option><option>Extra care</option></select></div><div id="recoverError" class="error"></div><div class="login-actions">${btn("Complete setup","completeAccountSetup()",true)}</div><button class="link" style="margin-top:12px" onclick="logout()">Sign out</button></div></div>`;
+ document.body.innerHTML=`<div class="login"><div class="login-box"><div class="login-brand"><div class="brand-mark">C</div><div><h1>CareHomeOS</h1><small>Finish account setup</small></div></div><p>Your Firebase login is valid, but your CareHomeOS workspace profile has not been completed.</p><div class="notice warn">This can happen if account creation was interrupted while the Firestore records were being created.</div><div class="field"><label>Organisation name</label><input id="recoverOrg" placeholder="e.g. Haven Care Group"></div><div class="field" style="margin-top:10px"><label>Service type</label><select id="recoverType"><option>Care home</option><option>Home care</option><option>Supported living</option><option>Extra care</option></select></div><div id="recoverError" class="error"></div><div class="login-actions">${btn("Complete setup","completeAccountSetup()",true)}</div><button class="link" style="margin-top:12px" data-carehome-legacy-action="legacy-8245766">Sign out</button></div></div>`;
 }
 window.completeAccountSetup=async()=>{
  try{
@@ -202,7 +207,7 @@ function showFirebaseSetupError(e){
  document.body.innerHTML=`<div class="login"><div class="login-box"><div class="login-brand"><div class="brand-mark">C</div><div><h1>CareHomeOS</h1><small>Could not load workspace</small></div></div><div class="notice warn"><strong>Firebase connection succeeded, but Firestore rejected a workspace request.</strong></div><p style="font-size:11px">${esc(prettyError(e))}</p><p style="font-size:10px;color:#71808d">Check that Email/Password Authentication is enabled, Firestore exists, and the latest <b>firestore.rules</b> have been published to the same <b>carehomeos</b> Firebase project.</p><div class="modal-actions">${btn("Sign out","signOut(auth)",true)}</div></div></div>`;
 }
 function mountApp(){
- document.body.innerHTML=`<div id="shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">C</div><div><strong>CareHomeOS</strong><small>Care operations</small></div></div><div class="workspace"><span class="eyebrow">WORKSPACE</span><button class="workspace-btn"><span class="avatar sm">${initials(state.org.name)}</span><b>${esc(state.org.name)}</b><span>⌄</span></button></div><nav class="nav">${navItems.map(x=>`<button data-view="${x[0]}"><span>${x[1]}</span>${x[2]}</button>`).join("")}</nav><div class="side-foot"><div class="help"><span class="avatar sm">?</span><div><strong>Need help?</strong><small>Support centre</small></div></div><div class="user"><span class="avatar">${initials(state.profile.name)}</span><div><strong>${esc(state.profile.name)}</strong><small>${roleLabel(state.role)}</small></div><button onclick="logout()">↗</button></div></div></aside><main class="main"><header class="top"><button class="icon mobile" id="mobileMenu">☰</button><div class="crumb"><span>${esc(state.org.name)}</span><b>/</b><strong id="title">Overview</strong></div><div class="top-actions"><button class="icon" onclick="globalSearch()">⌕</button><button class="icon bell" onclick="notifications()">♧<i>4</i></button><span class="date" id="today"></span></div></header><section class="content" id="content"></section></main></div>`;
+ document.body.innerHTML=`<div id="shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">C</div><div><strong>CareHomeOS</strong><small>Care operations</small></div></div><div class="workspace"><span class="eyebrow">WORKSPACE</span><button class="workspace-btn"><span class="avatar sm">${initials(state.org.name)}</span><b>${esc(state.org.name)}</b><span>⌄</span></button></div><nav class="nav">${navItems.map(x=>`<button data-view="${x[0]}"><span>${x[1]}</span>${x[2]}</button>`).join("")}</nav><div class="side-foot"><div class="help"><span class="avatar sm">?</span><div><strong>Need help?</strong><small>Support centre</small></div></div><div class="user"><span class="avatar">${initials(state.profile.name)}</span><div><strong>${esc(state.profile.name)}</strong><small>${roleLabel(state.role)}</small></div><button data-carehome-legacy-action="legacy-8245766">↗</button></div></div></aside><main class="main"><header class="top"><button class="icon mobile" id="mobileMenu">☰</button><div class="crumb"><span>${esc(state.org.name)}</span><b>/</b><strong id="title">Overview</strong></div><div class="top-actions"><button class="icon" data-carehome-legacy-action="legacy-9239722">⌕</button><button class="icon bell" data-carehome-legacy-action="legacy-5463599">♧<i>4</i></button><span class="date" id="today"></span></div></header><section class="content" id="content"></section></main></div>`;
  document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>goPage(b.dataset.view));$("#mobileMenu").onclick=()=>$(".sidebar").classList.toggle("open");
  render();$("#today").textContent=new Date().toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short",year:"numeric"});
 }
@@ -236,9 +241,117 @@ function render(){
 function table(headers,rows){return `<div class="table-card card"><div class="table-wrap"><table class="table"><thead><tr>${headers.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.length?rows.join(""):`<tr><td colspan="${headers.length}"><div class="empty">No records found.</div></td></tr>`}</tbody></table></div></div>`}
 function personCell(name,sub=""){return `<div class="person"><span class="avatar">${initials(name)}</span><div><strong>${esc(name)}</strong><small>${esc(sub)}</small></div></div>`}
 function form(title,sub,fields,saveLabel,saveAction){
- showModal(`<h2>${title}</h2><p class="sub">${sub}</p><div class="form-grid">${fields.map(f=>`<div class="field ${f.full?"full":""}"><label>${f.label}</label>${f.type==="select"?`<select id="f_${f.key}">${f.options.map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join("")}</select>`:`<${f.type==="textarea"?"textarea":"input"} id="f_${f.key}" ${f.type==="textarea"?"":`type="${f.type||"text"}"`} ${f.value!==undefined?`value="${esc(f.value)}"`:""} placeholder="${esc(f.placeholder||"")}">${f.type==="textarea"?esc(f.value||""):""}</${f.type==="textarea"?"textarea":"input"}>`}</div>`).join("")}</div><div class="modal-actions">${btn("Cancel","closeModal()")}${btn(saveLabel,saveAction,true)}</div>`);
- if(fields)fields.filter(f=>f.type==="select"&&f.value!==undefined).forEach(f=>{const el=$("#f_"+f.key);if(el)el.value=f.value});
+  const formId="carehomeos-form-"+Date.now();
+  const saveId=formId+"-save";
+  showModal(`<h2>${esc(title)}</h2><p class="sub">${esc(sub)}</p>
+    <form id="${formId}" class="form-grid" novalidate>
+      ${fields.map(f=>`<div class="field ${f.full?"full":""}">
+        <label>${esc(f.label)}</label>
+        ${f.type==="select"
+          ? `<select id="f_${esc(f.key)}" name="${esc(f.key)}">${(f.options||[]).map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join("")}</select>`
+          : `<${f.type==="textarea"?"textarea":"input"} id="f_${esc(f.key)}" name="${esc(f.key)}" ${f.type==="textarea"?"":`type="${esc(f.type||"text")}"`} ${f.value!==undefined?`value="${esc(f.value)}"`:""} placeholder="${esc(f.placeholder||"")}">${f.type==="textarea"?esc(f.value||""):""}</${f.type==="textarea"?"textarea":"input"}>`}
+      </div>`).join("")}
+      <div class="modal-actions full">
+        <button type="button" class="btn" id="${formId}-cancel">Cancel</button>
+        <button type="submit" class="btn primary" id="${saveId}">${esc(saveLabel)}</button>
+      </div>
+    </form>`);
+  const modal=document.getElementById("modal");
+  const formEl=document.getElementById(formId);
+  const saveEl=document.getElementById(saveId);
+  const cancelEl=document.getElementById(formId+"-cancel");
+
+  if(fields)fields.filter(f=>f.type==="select"&&f.value!==undefined).forEach(f=>{
+    const el=$("#f_"+f.key); if(el)el.value=f.value;
+  });
+
+  cancelEl.onclick=()=>closeModal();
+
+  formEl.addEventListener("submit",async event=>{
+    event.preventDefault();
+    if(saveEl.disabled)return;
+    saveEl.disabled=true;
+    const original=saveEl.textContent;
+    saveEl.textContent="Saving…";
+    try{
+      await executeFormAction(saveAction);
+    }catch(e){
+      console.error("CareHomeOS form action failed",e);
+      saveEl.disabled=false;
+      saveEl.textContent=original;
+      showDatabaseError("Could not save record",e,"form");
+    }
+  });
 }
+
+async function executeFormAction(action){
+  const text=String(action||"").trim();
+  const m=text.match(/^([A-Za-z_$][\w$]*)\(([\s\S]*)\)$/);
+  if(!m)throw new Error("Invalid CareHomeOS action.");
+  const name=m[1];
+  const fn=window[name];
+  if(typeof fn!=="function")throw new Error(`Action "${name}" is not available on this page.`);
+  return await fn(...parseCallArgs(m[2]));
+}
+
+function parseCallArgs(text){
+  // Safe parser for the controlled action strings generated by CareHomeOS.
+  // It understands strings, objects and nested braces without eval().
+  const parts=[]; let cur="",quote=null,depth=0,escapeNext=false;
+  for(const ch of text){
+    if(escapeNext){cur+=ch;escapeNext=false;continue}
+    if(ch==="\\"){cur+=ch;escapeNext=true;continue}
+    if(quote){
+      cur+=ch;
+      if(ch===quote)quote=null;
+      continue;
+    }
+    if(ch==="\""||ch==="'"){quote=ch;cur+=ch;continue}
+    if(ch==="{"||ch==="["||ch==="("){depth++;cur+=ch;continue}
+    if(ch==="}"||ch==="]"||ch===")"){depth--;cur+=ch;continue}
+    if(ch===","&&depth===0){parts.push(cur.trim());cur="";continue}
+    cur+=ch;
+  }
+  if(cur.trim())parts.push(cur.trim());
+  return parts.map(parseValue);
+}
+function parseValue(s){
+  const t=s.trim();
+  const vm=t.match(/^v\\((["'])(.*?)\\1\\)$/);
+  if(vm)return v(vm[2]);
+  if((t.startsWith('"')&&t.endsWith('"'))||(t.startsWith("'")&&t.endsWith("'"))){
+    return t.slice(1,-1).replace(/\\"/g,'"').replace(/\\'/g,"'");
+  }
+  if(t.startsWith("{")&&t.endsWith("}")){
+    const obj={};
+    const inner=t.slice(1,-1);
+    if(!inner.trim())return obj;
+    for(const part of splitObject(inner)){
+      const idx=part.indexOf(":");
+      if(idx<0)continue;
+      const key=part.slice(0,idx).trim().replace(/^['"]|['"]$/g,"");
+      obj[key]=parseValue(part.slice(idx+1));
+    }
+    return obj;
+  }
+  return t;
+}
+function splitObject(text){
+  const parts=[];let cur="",quote=null,depth=0,escp=false;
+  for(const ch of text){
+    if(escp){cur+=ch;escp=false;continue}
+    if(ch==="\\"){cur+=ch;escp=true;continue}
+    if(quote){cur+=ch;if(ch===quote)quote=null;continue}
+    if(ch==="\""||ch==="'"){quote=ch;cur+=ch;continue}
+    if(ch==="{"){depth++;cur+=ch;continue}
+    if(ch==="}"){depth--;cur+=ch;continue}
+    if(ch===","&&depth===0){parts.push(cur.trim());cur="";continue}
+    cur+=ch;
+  }
+  if(cur.trim())parts.push(cur.trim());
+  return parts;
+}
+
 const v=k=>$("#f_"+k)?.value||"";
 
 async function writeAudit(action,collectionName,recordId,recordLabel,before=null,after=null,summary=""){
@@ -248,7 +361,36 @@ async function writeAudit(action,collectionName,recordId,recordLabel,before=null
     at:serverTimestamp()
   });
 }
-async function createRecord(col,payload,message,label){
+
+window.__careHomeActions=window.__careHomeActions||{};
+document.addEventListener("click",async event=>{
+  const el=event.target.closest("[data-carehome-action]");
+  if(!el)return;
+  event.preventDefault();
+  const id=el.getAttribute("data-carehome-action");
+  const action=window.__careHomeActions[id];
+  if(!action)return;
+  if(el.dataset.busy==="1")return;
+  el.dataset.busy="1";
+  const original=el.innerHTML;
+  const saving=/^(createRecord|editRecord)\(/.test(String(action).trim());
+  if(saving){el.disabled=true;el.innerHTML="Saving…";}
+  try{
+    await executeFormAction(action);
+  }catch(e){
+    console.error("CareHomeOS action failed",e);
+    if(typeof showDatabaseError==="function")showDatabaseError("Action failed",e,"button");
+    else if(typeof toast==="function")toast(e?.message||String(e));
+  }finally{
+    if(document.body.contains(el)){
+      el.dataset.busy="0";
+      if(saving){el.disabled=false;el.innerHTML=original;}
+    }
+    delete window.__careHomeActions[id];
+  }
+});
+
+window.createRecord=window.createRecord=async function createRecord(col,payload,message,label){
  try{
    if(!state.user||!state.org?.id) throw new Error("Your CareHomeOS workspace is not ready. Sign out and sign back in.");
    const ref=await addDoc(collection(db,`organisations/${state.org.id}/${col}`),{...payload,createdBy:state.user.uid,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
@@ -259,7 +401,7 @@ async function createRecord(col,payload,message,label){
    showDatabaseError("Saving failed", e, col);
  }
 }
-async function editRecord(col,id,payload,message,label){
+window.editRecord=window.editRecord=async function editRecord(col,id,payload,message,label){
  try{
    if(!state.user||!state.org?.id) throw new Error("Your CareHomeOS workspace is not ready. Sign out and sign back in.");
    const ref=doc(db,`organisations/${state.org.id}/${col}/${id}`);
@@ -306,22 +448,34 @@ window.showDatabaseDiagnostics=async()=>{
 const views={
 dashboard:()=>pageHead("Good morning, "+esc(state.profile.name.split(" ")[0]),"Live provider overview · "+esc(state.org.name),btn("Test database","testFirestore()")+ (can("rotaWrite")?btn("+ New record","quickCreate()",true):""))+`
 <div class="grid stats"><div class="card stat"><label>People receiving care</label><strong>${data("people").length}</strong><span class="delta good">Live database</span><div class="stat-icon">◉</div></div><div class="card stat"><label>Active staff</label><strong>${data("staff").filter(x=>x.status==="Active").length}</strong><span class="delta good">Live database</span><div class="stat-icon">♙</div></div><div class="card stat"><label>Open incidents</label><strong>${data("incidents").filter(x=>x.status!=="Closed").length}</strong><span class="delta warn">Needs oversight</span><div class="stat-icon">!</div></div><div class="card stat"><label>Compliance</label><strong>94%</strong><span class="delta good">Assurance score</span><div class="stat-icon">◈</div></div></div>
-<div class="grid two"><div class="card panel"><div class="panel-head"><h3>Today's rota</h3><button class="link" onclick="go('rota')">Open rota →</button></div><div class="list">${data("rota").slice(0,5).map(s=>`<div class="row"><div class="rowmain"><strong>${esc(s.date)} · ${esc(s.time)}</strong><small>${esc(s.unit)} · ${esc(s.staffName||"Unassigned")}</small></div>${status(s.status)}</div>`).join("")||`<div class="empty">No shifts yet.</div>`}</div></div><div class="card panel"><div class="panel-head"><h3>Attention required</h3><button class="link" onclick="go('compliance')">See all →</button></div><div class="notice warn"><strong>${data("careplans").filter(x=>x.status==="Review due").length} care plans</strong> need review.</div><div class="notice warn"><strong>${data("training").filter(x=>x.status==="Overdue").length} training items</strong> are overdue.</div><div class="notice info"><strong>${data("rota").filter(x=>x.status==="Open").length} shifts</strong> currently have no cover.</div></div></div>`,
-people:()=>pageHead("People","Manage people receiving care, risks and care records.",can("peopleWrite")?btn("+ Add person","addPerson()",true):"")+`<div class="card table-card"><div class="table-tools"><input class="search" placeholder="Search people..." oninput="filterRows(this.value)"></div><div id="table">${table(["Person","Room","Key needs","Risk","Care plan",""],data("people").map(p=>`<tr><td>${personCell(p.name,"DOB "+fmtDate(p.dob))}</td><td>${esc(p.room)}</td><td>${esc(p.needs)}</td><td>${status(p.risk+" risk")}</td><td>${esc(p.planStatus||"Current")}</td><td><button class="btn small" onclick="viewPerson('${p.id}')">Open</button></td></tr>`))}</div></div>`,
-staff:()=>pageHead("Staff","Workforce profiles, roles and training status.",can("staffWrite")?btn("+ Add staff","addStaff()",true):"")+table(["Staff member","Role","Status","Training","Next review",""],data("staff").map(s=>`<tr><td>${personCell(s.name,s.email)}</td><td>${esc(s.role)}</td><td>${status(s.status)}</td><td>${esc(s.training||"0%")}</td><td>${fmtDate(s.nextTraining)}</td><td><button class="btn small" onclick="viewStaff('${s.id}')">Open</button></td></tr>`)),
-rota:()=>pageHead("Rota & shifts","Database-backed scheduling with real saving, editing and coverage status.",can("rotaWrite")?btn("+ Add shift","addShift()",true):"")+`<div class="notice ${data("rota").some(x=>x.status==="Open")?"warn":"success"}"><strong>${data("rota").filter(x=>x.status==="Open").length} open shifts.</strong> Changes are saved to Firestore and visible to authorised users.</div>`+table(["Date","Time","Unit","Assigned staff","Status",""],data("rota").map(s=>`<tr><td>${esc(s.date)}</td><td>${esc(s.time)}</td><td>${esc(s.unit)}</td><td>${esc(s.staffName||"Unassigned")}</td><td>${status(s.status)}</td><td>${can("rotaWrite")?`<button class="btn small" onclick="editShift('${s.id}')">Edit</button>`:""}</td></tr>`)),
-careplans:()=>pageHead("Care plans","Person-centred plans, outcomes, actions and review dates.",can("careWrite")?btn("+ New care plan","addCarePlan()",true):"")+table(["Person","Domain","Goal","Review","Status",""],data("careplans").map(p=>`<tr><td><strong>${esc(p.personName)}</strong></td><td>${esc(p.domain)}</td><td>${esc(p.goal)}</td><td>${fmtDate(p.reviewDate)}</td><td>${status(p.status)}</td><td><button class="btn small" onclick="viewCarePlan('${p.id}')">Open</button>${can("careWrite")?` <button class="btn small" onclick="editCarePlan('${p.id}')">Edit</button>`:""}</td></tr>`)),
-incidents:()=>pageHead("Incidents","Record, investigate and learn from safety events.",can("incidentWrite")?btn("+ Report incident","addIncident()",true):"")+table(["Type","Person","Date","Severity","Status","Owner",""],data("incidents").map(i=>`<tr><td><strong>${esc(i.type)}</strong></td><td>${esc(i.personName)}</td><td>${fmtDate(i.date)}</td><td>${status(i.severity)}</td><td>${status(i.status)}</td><td>${esc(i.ownerName||"—")}</td><td><button class="btn small" onclick="viewIncident('${i.id}')">Open</button></td></tr>`)),
-training:()=>pageHead("Training & competency","Mandatory learning, competency checks and expiry dates.",can("trainingWrite")?btn("+ Assign training","addTraining()",true):"")+table(["Course","Staff","Due","Status","Score",""],data("training").map(t=>`<tr><td><strong>${esc(t.course)}</strong></td><td>${esc(t.staffName)}</td><td>${fmtDate(t.due)}</td><td>${status(t.status)}</td><td>${esc(t.score||"—")}</td><td>${can("trainingWrite")?`<button class="btn small" onclick="editTraining('${t.id}')">Update</button>`:""}</td></tr>`)),
-compliance:()=>pageHead("Compliance & assurance","Controls, audits, actions and governance evidence.",can("complianceWrite")?btn("+ Add action","addCompliance()",true):"")+`<div class="grid stats"><div class="card stat"><label>Assurance score</label><strong>94%</strong><span class="delta good">Good</span><div class="stat-icon">◈</div></div><div class="card stat"><label>Actions open</label><strong>${data("compliance").filter(x=>x.status!=="Complete").length}</strong><span class="delta warn">Tracked</span><div class="stat-icon">!</div></div><div class="card stat"><label>Evidence current</label><strong>98%</strong><span class="delta good">Excellent</span><div class="stat-icon">✓</div></div><div class="card stat"><label>Audit completion</label><strong>91%</strong><span class="delta good">On target</span><div class="stat-icon">▥</div></div></div>`+table(["Control/action","Owner","Due","Status",""],data("compliance").map(c=>`<tr><td><strong>${esc(c.item)}</strong></td><td>${esc(c.owner)}</td><td>${fmtDate(c.due)}</td><td>${status(c.status)}</td><td>${can("complianceWrite")?`<button class="btn small" onclick="editCompliance('${c.id}')">Update</button>`:""}</td></tr>`)),
-documents:()=>pageHead("Documents","Controlled policies, evidence and provider records.",can("documentWrite")?btn("+ Add document","addDocument()",true):"")+table(["Document","Category","Version","Review","Status",""],data("documents").map(d=>`<tr><td><strong>${esc(d.name)}</strong></td><td>${esc(d.category)}</td><td>${esc(d.version)}</td><td>${fmtDate(d.review)}</td><td>${status(d.status)}</td><td><button class="btn small" onclick="viewDocument('${d.id}')">Preview</button></td></tr>`)),
+<div class="grid two"><div class="card panel"><div class="panel-head"><h3>Today's rota</h3><button class="link" data-carehome-legacy-action="legacy-9787397">Open rota →</button></div><div class="list">${data("rota").slice(0,5).map(s=>`<div class="row"><div class="rowmain"><strong>${esc(s.date)} · ${esc(s.time)}</strong><small>${esc(s.unit)} · ${esc(s.staffName||"Unassigned")}</small></div>${status(s.status)}</div>`).join("")||`<div class="empty">No shifts yet.</div>`}</div></div><div class="card panel"><div class="panel-head"><h3>Attention required</h3><button class="link" data-carehome-legacy-action="legacy-8708016">See all →</button></div><div class="notice warn"><strong>${data("careplans").filter(x=>x.status==="Review due").length} care plans</strong> need review.</div><div class="notice warn"><strong>${data("training").filter(x=>x.status==="Overdue").length} training items</strong> are overdue.</div><div class="notice info"><strong>${data("rota").filter(x=>x.status==="Open").length} shifts</strong> currently have no cover.</div></div></div>`,
+people:()=>pageHead("People","Manage people receiving care, risks and care records. New records are saved to Firestore and shared across the workspace.",can("peopleWrite")?btn("+ Add person","addPerson()",true):"")+`<div class="card table-card"><div class="table-tools"><input class="search" placeholder="Search people..." oninput="filterRows(this.value)"></div><div id="table">${table(["Person","Room","Key needs","Risk","Care plan",""],data("people").map(p=>`<tr><td>${personCell(p.name,"DOB "+fmtDate(p.dob))}</td><td>${esc(p.room)}</td><td>${esc(p.needs)}</td><td>${status(p.risk+" risk")}</td><td>${esc(p.planStatus||"Current")}</td><td><button class="btn small" data-carehome-legacy-action="legacy-1668368">Open</button></td></tr>`))}</div></div>`,
+staff:()=>pageHead("Staff","Workforce profiles, roles and training status.",can("staffWrite")?btn("+ Add staff","addStaff()",true):"")+table(["Staff member","Role","Status","Training","Next review",""],data("staff").map(s=>`<tr><td>${personCell(s.name,s.email)}</td><td>${esc(s.role)}</td><td>${status(s.status)}</td><td>${esc(s.training||"0%")}</td><td>${fmtDate(s.nextTraining)}</td><td><button class="btn small" data-carehome-legacy-action="legacy-8162858">Open</button></td></tr>`)),
+rota:()=>pageHead("Rota & shifts","Database-backed scheduling with real saving, editing and coverage status.",can("rotaWrite")?btn("+ Add shift","addShift()",true):"")+`<div class="notice ${data("rota").some(x=>x.status==="Open")?"warn":"success"}"><strong>${data("rota").filter(x=>x.status==="Open").length} open shifts.</strong> Changes are saved to Firestore and visible to authorised users.</div>`+table(["Date","Time","Unit","Assigned staff","Status",""],data("rota").map(s=>`<tr><td>${esc(s.date)}</td><td>${esc(s.time)}</td><td>${esc(s.unit)}</td><td>${esc(s.staffName||"Unassigned")}</td><td>${status(s.status)}</td><td>${can("rotaWrite")?`<button class="btn small" data-carehome-legacy-action="legacy-107158">Edit</button>`:""}</td></tr>`)),
+careplans:()=>pageHead("Care plans","Person-centred plans, outcomes, actions and review dates.",can("careWrite")?btn("+ New care plan","addCarePlan()",true):"")+table(["Person","Domain","Goal","Review","Status",""],data("careplans").map(p=>`<tr><td><strong>${esc(p.personName)}</strong></td><td>${esc(p.domain)}</td><td>${esc(p.goal)}</td><td>${fmtDate(p.reviewDate)}</td><td>${status(p.status)}</td><td><button class="btn small" data-carehome-legacy-action="legacy-9158608">Open</button>${can("careWrite")?` <button class="btn small" data-carehome-legacy-action="legacy-5356590">Edit</button>`:""}</td></tr>`)),
+incidents:()=>pageHead("Incidents","Record, investigate and learn from safety events.",can("incidentWrite")?btn("+ Report incident","addIncident()",true):"")+table(["Type","Person","Date","Severity","Status","Owner",""],data("incidents").map(i=>`<tr><td><strong>${esc(i.type)}</strong></td><td>${esc(i.personName)}</td><td>${fmtDate(i.date)}</td><td>${status(i.severity)}</td><td>${status(i.status)}</td><td>${esc(i.ownerName||"—")}</td><td><button class="btn small" data-carehome-legacy-action="legacy-9870117">Open</button></td></tr>`)),
+training:()=>pageHead("Training & competency","Mandatory learning, competency checks and expiry dates.",can("trainingWrite")?btn("+ Assign training","addTraining()",true):"")+table(["Course","Staff","Due","Status","Score",""],data("training").map(t=>`<tr><td><strong>${esc(t.course)}</strong></td><td>${esc(t.staffName)}</td><td>${fmtDate(t.due)}</td><td>${status(t.status)}</td><td>${esc(t.score||"—")}</td><td>${can("trainingWrite")?`<button class="btn small" data-carehome-legacy-action="legacy-9420276">Update</button>`:""}</td></tr>`)),
+compliance:()=>pageHead("Compliance & assurance","Controls, audits, actions and governance evidence.",can("complianceWrite")?btn("+ Add action","addCompliance()",true):"")+`<div class="grid stats"><div class="card stat"><label>Assurance score</label><strong>94%</strong><span class="delta good">Good</span><div class="stat-icon">◈</div></div><div class="card stat"><label>Actions open</label><strong>${data("compliance").filter(x=>x.status!=="Complete").length}</strong><span class="delta warn">Tracked</span><div class="stat-icon">!</div></div><div class="card stat"><label>Evidence current</label><strong>98%</strong><span class="delta good">Excellent</span><div class="stat-icon">✓</div></div><div class="card stat"><label>Audit completion</label><strong>91%</strong><span class="delta good">On target</span><div class="stat-icon">▥</div></div></div>`+table(["Control/action","Owner","Due","Status",""],data("compliance").map(c=>`<tr><td><strong>${esc(c.item)}</strong></td><td>${esc(c.owner)}</td><td>${fmtDate(c.due)}</td><td>${status(c.status)}</td><td>${can("complianceWrite")?`<button class="btn small" data-carehome-legacy-action="legacy-7673939">Update</button>`:""}</td></tr>`)),
+documents:()=>pageHead("Documents","Controlled policies, evidence and provider records.",can("documentWrite")?btn("+ Add document","addDocument()",true):"")+table(["Document","Category","Version","Review","Status",""],data("documents").map(d=>`<tr><td><strong>${esc(d.name)}</strong></td><td>${esc(d.category)}</td><td>${esc(d.version)}</td><td>${fmtDate(d.review)}</td><td>${status(d.status)}</td><td><button class="btn small" data-carehome-legacy-action="legacy-4766443">Preview</button></td></tr>`)),
 reports:()=>pageHead("Reports & insights","Management information generated from the live workspace.",btn("Export snapshot","exportReport()",true))+`<div class="grid metric-grid"><div class="card metric"><small>People</small><strong>${data("people").length}</strong></div><div class="card metric"><small>Open incidents</small><strong>${data("incidents").filter(x=>x.status!=="Closed").length}</strong></div><div class="card metric"><small>Open shifts</small><strong>${data("rota").filter(x=>x.status==="Open").length}</strong></div></div><div class="card panel" style="margin-top:15px"><div class="panel-head"><h3>Management snapshot</h3></div><div class="bar-chart">${[54,48,61,42,36,29].map((v,i)=>`<div class="bar" style="height:${v*2}px"><span>${["Mar","Apr","May","Jun","Jul","Aug"][i]}</span></div>`).join("")}</div></div>`,
 audit:()=>pageHead("Audit history","Account-owner change history. Entries are written to Firestore when authorised users create or update records. The owner can review the before/after change data.",can("audit")?btn("Refresh","go('audit')"):"")+`<div class="card table-card"><div class="table-tools"><input class="search" placeholder="Search audit history..." oninput="filterRows(this.value)"></div>${table(["Date","User","Action","Area","Record",""],(state.audit||[]).map(a=>`<tr><td>${fmtDate(a.at)}</td><td>${esc(a.userName||a.uid)}</td><td>${esc(a.action)}</td><td>${esc(a.collection)}</td><td>${esc(a.recordLabel||a.recordId)}</td><td><span class="audit">${esc(a.summary||"")}</span></td></tr>`))}</div>`,
-team:()=>pageHead("Team & permissions","Manage workspace roles and create secure invitation codes.",state.role==="owner"?btn("+ Invite team member","inviteUser()",true):"")+`<div class="notice info"><strong>Permissions are enforced by Firestore Security Rules.</strong> The interface also hides controls that a role cannot use.</div>`+table(["Member","Email","Role","Status",""],state.members||[].map(m=>`<tr><td>${personCell(m.name,"")}</td><td>${esc(m.email)}</td><td>${roleLabel(m.role)}</td><td>${status(m.status)}</td><td>${state.role==="owner"&&m.uid!==state.user.uid?`<button class="btn small" onclick="changeRole('${m.uid}','${esc(m.name)}','${m.role}')">Change role</button>`:""}</td></tr>`))
+team:()=>pageHead("Team & permissions","Manage workspace roles and create secure invitation codes.",state.role==="owner"?btn("+ Invite team member","inviteUser()",true):"")+`<div class="notice info"><strong>Permissions are enforced by Firestore Security Rules.</strong> The interface also hides controls that a role cannot use.</div>`+table(["Member","Email","Role","Status",""],state.members||[].map(m=>`<tr><td>${personCell(m.name,"")}</td><td>${esc(m.email)}</td><td>${roleLabel(m.role)}</td><td>${status(m.status)}</td><td>${state.role==="owner"&&m.uid!==state.user.uid?`<button class="btn small" data-carehome-legacy-action="legacy-4245893">Change role</button>`:""}</td></tr>`))
 };
 
-window.quickCreate=()=>showModal(`<h2>New record</h2><p class="sub">Choose a record type.</p><div class="grid metric-grid">${can("peopleWrite")?`<button class="btn" onclick="closeModal();addPerson()">Person</button>`:""}${can("staffWrite")?`<button class="btn" onclick="closeModal();addStaff()">Staff</button>`:""}${can("rotaWrite")?`<button class="btn" onclick="closeModal();addShift()">Shift</button>`:""}${can("incidentWrite")?`<button class="btn" onclick="closeModal();addIncident()">Incident</button>`:""}${can("trainingWrite")?`<button class="btn" onclick="closeModal();addTraining()">Training</button>`:""}</div>`);
-window.addPerson=()=>form("Add person","Create a care record.",[{key:"name",label:"Full name"},{key:"dob",label:"Date of birth",type:"date"},{key:"room",label:"Room / reference"},{key:"needs",label:"Key needs"},{key:"risk",label:"Risk",type:"select",options:["Low","Medium","High"]}], "Save person",`createRecord("people",{name:v("name"),dob:v("dob"),room:v("room"),needs:v("needs"),risk:v("risk"),planStatus:"Current",status:"In service"},"Person saved")`);
+window.quickCreate=()=>showModal(`<h2>New record</h2><p class="sub">Choose a record type.</p><div class="grid metric-grid">${can("peopleWrite")?`<button class="btn" data-carehome-legacy-action="legacy-9503585">Person</button>`:""}${can("staffWrite")?`<button class="btn" data-carehome-legacy-action="legacy-6833065">Staff</button>`:""}${can("rotaWrite")?`<button class="btn" data-carehome-legacy-action="legacy-3564578">Shift</button>`:""}${can("incidentWrite")?`<button class="btn" data-carehome-legacy-action="legacy-6466000">Incident</button>`:""}${can("trainingWrite")?`<button class="btn" data-carehome-legacy-action="legacy-2457051">Training</button>`:""}</div>`);
+window.addPerson=()=>form(
+  "Add person",
+  "Create a person record. The record will be saved to this organisation's Firestore database and will then be available throughout CareHomeOS.",
+  [
+    {key:"name",label:"Full name"},
+    {key:"dob",label:"Date of birth",type:"date"},
+    {key:"room",label:"Room / reference"},
+    {key:"needs",label:"Key needs",full:true},
+    {key:"risk",label:"Risk level",type:"select",options:["Low","Medium","High"]}
+  ],
+  "Save person",
+  `createRecord("people",{name:v("name"),dob:v("dob"),room:v("room"),needs:v("needs"),risk:v("risk"),planStatus:"Current",status:"In service"},"Person saved")`
+);
 window.addStaff=()=>form("Add staff","Create a staff profile.",[{key:"name",label:"Full name"},{key:"email",label:"Email",type:"email"},{key:"role",label:"Role"},{key:"status",label:"Status",type:"select",options:["Active","On leave","Pending"]},{key:"training",label:"Training completion",value:"0%"}],"Save staff",`createRecord("staff",{name:v("name"),email:v("email"),role:v("role"),status:v("status"),training:v("training")},"Staff member saved")`);
 window.addShift=()=>form("Add shift","Create a database-backed rota entry.",[{key:"date",label:"Date"},{key:"time",label:"Time",placeholder:"23:00–07:00"},{key:"unit",label:"Unit / area"},{key:"staffName",label:"Assigned staff",type:"select",options:["Unassigned",...data("staff").filter(s=>s.status==="Active").map(s=>s.name)]},{key:"status",label:"Status",type:"select",options:["Open","Filled","Pending","Cancelled"]},{key:"notes",label:"Notes",full:true}],"Save shift",`createRecord("shifts",{date:v("date"),time:v("time"),unit:v("unit"),staffName:v("staffName"),status:v("status"),notes:v("notes")},"Shift saved")`);
 window.editShift=id=>{const s=data("rota").find(x=>x.id===id);form("Edit shift","Update the shift. Saving writes directly to Firestore.",[{key:"date",label:"Date",value:s.date},{key:"time",label:"Time",value:s.time},{key:"unit",label:"Unit / area",value:s.unit},{key:"staffName",label:"Assigned staff",type:"select",value:s.staffName||"Unassigned",options:["Unassigned",...data("staff").filter(x=>x.status==="Active").map(x=>x.name)]},{key:"status",label:"Status",type:"select",value:s.status,options:["Open","Filled","Pending","Cancelled"]},{key:"notes",label:"Notes",value:s.notes||"",full:true}],"Save changes",`editRecord("shifts","${id}",{date:v("date"),time:v("time"),unit:v("unit"),staffName:v("staffName"),status:v("status"),notes:v("notes")},"Shift updated")`)};
@@ -346,7 +500,7 @@ window.changeRole=async(uid,name,current)=>{if(state.role!=="owner")return;const
 window.saveRole=async uid=>{try{await updateDoc(doc(db,`organisations/${state.org.id}/members/${uid}`),{role:$("#newRole").value,updatedAt:serverTimestamp(),updatedBy:state.user.uid});closeModal();toast("Role updated")}catch(e){toast(prettyError(e))}};
 
 window.globalSearch=()=>showModal(`<h2>Global search</h2><p class="sub">Search the live workspace.</p><div class="field"><input id="gs" oninput="runSearch(this.value)" placeholder="Search people, staff, incidents, documents..."></div><div id="results" style="margin-top:12px"></div><div class="modal-actions">${btn("Close","closeModal()")}</div>`);
-window.runSearch=q=>{const n=q.toLowerCase();const items=[...data("people").map(x=>({t:"Person",n:x.name,d:x.needs,a:`viewPerson('${x.id}')`})),...data("staff").map(x=>({t:"Staff",n:x.name,d:x.role,a:`viewStaff('${x.id}')`})),...data("incidents").map(x=>({t:"Incident",n:x.type+" · "+x.personName,d:x.status,a:`viewIncident('${x.id}')`})),...data("documents").map(x=>({t:"Document",n:x.name,d:x.category,a:`viewDocument('${x.id}')`}))].filter(x=>(x.n+" "+x.d).toLowerCase().includes(n));$("#results").innerHTML=items.length?`<div class="list">${items.slice(0,12).map(x=>`<div class="row"><div class="rowmain"><strong>${esc(x.n)}</strong><small>${esc(x.t)} · ${esc(x.d)}</small></div><button class="btn small" onclick="closeModal();${x.a}">Open</button></div>`).join("")}</div>`:`<div class="empty">No matches.</div>`};
+window.runSearch=q=>{const n=q.toLowerCase();const items=[...data("people").map(x=>({t:"Person",n:x.name,d:x.needs,a:`viewPerson('${x.id}')`})),...data("staff").map(x=>({t:"Staff",n:x.name,d:x.role,a:`viewStaff('${x.id}')`})),...data("incidents").map(x=>({t:"Incident",n:x.type+" · "+x.personName,d:x.status,a:`viewIncident('${x.id}')`})),...data("documents").map(x=>({t:"Document",n:x.name,d:x.category,a:`viewDocument('${x.id}')`}))].filter(x=>(x.n+" "+x.d).toLowerCase().includes(n));$("#results").innerHTML=items.length?`<div class="list">${items.slice(0,12).map(x=>`<div class="row"><div class="rowmain"><strong>${esc(x.n)}</strong><small>${esc(x.t)} · ${esc(x.d)}</small></div><button class="btn small" data-carehome-legacy-action="legacy-8928658">Open</button></div>`).join("")}</div>`:`<div class="empty">No matches.</div>`};
 window.testFirestore=async()=>{
   try{
     if(!state.org?.id) throw new Error("No organisation is loaded.");
@@ -369,3 +523,21 @@ if(!configured){
 }else{
  onAuthStateChanged(auth,async user=>{state.user=user;if(!user)loginScreen();else await loadProfile()});
 }
+
+
+window.__careHomeLegacyActions={'legacy-3446982': 'resetPassword()', 'legacy-1965863': 'showAuthDiagnostics()', 'legacy-8245766': 'logout()', 'legacy-9239722': 'globalSearch()', 'legacy-5463599': 'notifications()', 'legacy-9787397': "go('rota')", 'legacy-8708016': "go('compliance')", 'legacy-1668368': "viewPerson('${p.id}')", 'legacy-8162858': "viewStaff('${s.id}')", 'legacy-107158': "editShift('${s.id}')", 'legacy-9158608': "viewCarePlan('${p.id}')", 'legacy-5356590': "editCarePlan('${p.id}')", 'legacy-9870117': "viewIncident('${i.id}')", 'legacy-9420276': "editTraining('${t.id}')", 'legacy-7673939': "editCompliance('${c.id}')", 'legacy-4766443': "viewDocument('${d.id}')", 'legacy-4245893': "changeRole('${m.uid}','${esc(m.name)}','${m.role}')", 'legacy-9503585': 'closeModal();addPerson()', 'legacy-6833065': 'closeModal();addStaff()', 'legacy-3564578': 'closeModal();addShift()', 'legacy-6466000': 'closeModal();addIncident()', 'legacy-2457051': 'closeModal();addTraining()', 'legacy-8928658': 'closeModal();${x.a}'};
+document.addEventListener("click",async event=>{
+  const el=event.target.closest("[data-carehome-legacy-action]");
+  if(!el)return;
+  event.preventDefault();
+  const action=window.__careHomeLegacyActions[el.getAttribute("data-carehome-legacy-action")];
+  if(!action)return;
+  try{await executeFormAction(action)}catch(e){
+    console.error(e);
+    if(typeof showDatabaseError==="function")showDatabaseError("Action failed",e,"legacy-button");
+  }
+});
+
+window.CareHomeOS=window.CareHomeOS||{};
+window.CareHomeOS.reload=()=>window.location.reload();
+window.addEventListener("unhandledrejection",e=>console.error("CareHomeOS unhandled rejection",e.reason));

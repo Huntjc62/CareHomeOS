@@ -41,3 +41,23 @@ This package remains browser-only:
 - Firestore Security Rules for permissions
 
 No npm, Node.js, Firebase CLI or Cloud Functions are required.
+
+
+## People save fix
+
+The People form no longer relies on inline `onclick` JavaScript for its Save button.
+It now uses a real form `submit` event, disables the button while saving, waits for the Firestore write to complete, and shows the Firebase error if the write is rejected.
+
+A successfully saved person is stored at:
+`organisations/{organisationId}/people/{personId}`
+
+The live Firestore listener then makes the new person appear across the People page and any other module that reads the People collection.
+
+
+## All pages / all buttons reliability update
+
+All shared CareHomeOS buttons now use a central delegated action system rather than inline `onclick` attributes. This covers navigation, add/edit/save actions, diagnostics, reports, audit history, team permissions and other interactive controls.
+
+Database actions show `Saving…`, await Firestore, and display a useful error if Firebase rejects the write.
+
+If a button still fails, the browser console will now contain the action error and the application will show a visible error dialog instead of silently doing nothing.
