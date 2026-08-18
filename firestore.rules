@@ -1,111 +1,68 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    function signedIn() {
-      return request.auth != null;
-    }
-
-    function member(orgId) {
-      return get(/databases/$(database)/documents/organisations/$(orgId)/members/$(request.auth.uid)).data;
-    }
-
-    function role(orgId) {
-      return member(orgId).role;
-    }
-
-    function owner(orgId) {
-      return signedIn() && role(orgId) == "owner";
-    }
-
-    function manager(orgId) {
-      return signedIn() && role(orgId) in ["owner", "manager"];
-    }
-
-    function senior(orgId) {
-      return signedIn() && role(orgId) in ["owner", "manager", "senior"];
-    }
-
-    function careAccess(orgId) {
-      return signedIn() && role(orgId) in ["owner", "manager", "senior", "care_worker"];
-    }
-
-    function orgMatch(orgId) {
-      return signedIn() && exists(/databases/$(database)/documents/organisations/$(orgId)/members/$(request.auth.uid));
-    }
-
+    function signedIn() { return request.auth != null; }
+    function member(orgId) { return get(/databases/$(database)/documents/organisations/$(orgId)/members/$(request.auth.uid)).data; }
+    function role(orgId) { return member(orgId).role; }
+    function owner(orgId) { return signedIn() && role(orgId) == 'owner'; }
+    function manager(orgId) { return signedIn() && role(orgId) in ['owner','manager']; }
+    function senior(orgId) { return signedIn() && role(orgId) in ['owner','manager','senior']; }
+    function careAccess(orgId) { return signedIn() && role(orgId) in ['owner','manager','senior','care_worker']; }
+    function orgMatch(orgId) { return signedIn() && exists(/databases/$(database)/documents/organisations/$(orgId)/members/$(request.auth.uid)); }
     match /users/{uid} {
-      allow read: if signedIn() && request.auth.uid == uid;
-      allow create: if signedIn() && request.auth.uid == uid;
-      allow update: if signedIn() && request.auth.uid == uid;
+      allow read, create, update: if signedIn() && request.auth.uid == uid;
       allow delete: if false;
     }
-
     match /organisations/{orgId} {
       allow create: if signedIn() && request.auth.uid == request.resource.data.ownerUid;
       allow read: if orgMatch(orgId);
-      allow update: if owner(orgId);
-      allow delete: if owner(orgId);
-
+      allow update, delete: if owner(orgId);
       match /members/{uid} {
         allow read: if orgMatch(orgId);
-        allow create: if signedIn() && (
-          (uid == request.auth.uid && request.resource.data.role == "owner" &&
-           getAfter(/databases/$(database)/documents/organisations/$(orgId)).data.ownerUid == request.auth.uid) ||
-          owner(orgId)
-        );
+        allow create: if signedIn() && ((uid == request.auth.uid && request.resource.data.role == 'owner' && getAfter(/databases/$(database)/documents/organisations/$(orgId)).data.ownerUid == request.auth.uid) || owner(orgId));
         allow update: if owner(orgId);
         allow delete: if owner(orgId) && uid != request.auth.uid;
       }
-
       match /{collection}/{docId} {
-        allow read: if orgMatch(orgId) && collection != "audit";
-
+        allow read: if orgMatch(orgId) && collection != 'audit';
         allow create: if
-          (collection == "people" && senior(orgId)) ||
-          (collection == "staff" && manager(orgId)) ||
-          (collection == "shifts" && senior(orgId)) ||
-          (collection == "carePlans" && senior(orgId)) ||
-          (collection == "incidents" && careAccess(orgId)) ||
-          (collection == "training" && senior(orgId)) ||
-          (collection == "compliance" && manager(orgId)) ||
-          (collection == "documents" && manager(orgId));
-
+          (collection == 'people' && senior(orgId)) ||
+          (collection == 'staff' && manager(orgId)) ||
+          (collection == 'shifts' && senior(orgId)) ||
+          (collection == 'carePlans' && senior(orgId)) ||
+          (collection == 'incidents' && careAccess(orgId)) ||
+          (collection == 'training' && senior(orgId)) ||
+          (collection == 'compliance' && manager(orgId)) ||
+          (collection == 'documents' && manager(orgId));
         allow update: if
-          (collection == "people" && senior(orgId)) ||
-          (collection == "staff" && manager(orgId)) ||
-          (collection == "shifts" && senior(orgId)) ||
-          (collection == "carePlans" && senior(orgId)) ||
-          (collection == "incidents" && careAccess(orgId)) ||
-          (collection == "training" && senior(orgId)) ||
-          (collection == "compliance" && manager(orgId)) ||
-          (collection == "documents" && manager(orgId));
-
+          (collection == 'people' && senior(orgId)) ||
+          (collection == 'staff' && manager(orgId)) ||
+          (collection == 'shifts' && senior(orgId)) ||
+          (collection == 'carePlans' && senior(orgId)) ||
+          (collection == 'incidents' && careAccess(orgId)) ||
+          (collection == 'training' && senior(orgId)) ||
+          (collection == 'compliance' && manager(orgId)) ||
+          (collection == 'documents' && manager(orgId));
         allow delete: if
-          (collection == "people" && manager(orgId)) ||
-          (collection == "staff" && manager(orgId)) ||
-          (collection == "shifts" && manager(orgId)) ||
-          (collection == "carePlans" && manager(orgId)) ||
-          (collection == "incidents" && manager(orgId)) ||
-          (collection == "training" && manager(orgId)) ||
-          (collection == "compliance" && manager(orgId)) ||
-          (collection == "documents" && manager(orgId));
+          (collection == 'people' && manager(orgId)) ||
+          (collection == 'staff' && manager(orgId)) ||
+          (collection == 'shifts' && manager(orgId)) ||
+          (collection == 'carePlans' && manager(orgId)) ||
+          (collection == 'incidents' && manager(orgId)) ||
+          (collection == 'training' && manager(orgId)) ||
+          (collection == 'compliance' && manager(orgId)) ||
+          (collection == 'documents' && manager(orgId));
       }
-
       match /audit/{auditId} {
         allow read: if owner(orgId);
-        allow create, update, delete: if false;
+        allow create: if orgMatch(orgId) && request.resource.data.actorUid == request.auth.uid && request.resource.data.actorName is string && request.resource.data.action in ['Created','Updated'];
+        allow update, delete: if false;
       }
     }
-
     match /invites/{code} {
-      allow create: if signedIn() && owner(resource.data.orgId);
-      allow read: if signedIn() && resource.data.status == "open" &&
-        resource.data.email == request.auth.token.email;
-      allow update: if signedIn() && resource.data.status == "open" &&
-        resource.data.email == request.auth.token.email &&
-        request.resource.data.status == "claimed" &&
-        request.resource.data.claimedBy == request.auth.uid;
+      allow create: if signedIn() && owner(request.resource.data.orgId);
+      allow read: if signedIn() && resource.data.status == 'open' && resource.data.email == request.auth.token.email;
+      allow update: if signedIn() && resource.data.status == 'open' && resource.data.email == request.auth.token.email && request.resource.data.status == 'claimed' && request.resource.data.claimedBy == request.auth.uid;
       allow delete: if false;
     }
   }

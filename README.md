@@ -1,290 +1,55 @@
-# CareHomeOS — Firebase Full Version
+# CareHomeOS — GitHub + Firebase only
 
-This package is a database-backed SaaS foundation using Firebase Authentication + Cloud Firestore, with role-based permissions and server-side audit logging.
+This version is deliberately static. It does not require Node.js, npm, Firebase CLI, a local server or Cloud Functions.
 
-## What is included
+## Services
+- GitHub / GitHub Pages — static hosting
+- Firebase Authentication — accounts and sign-in
+- Cloud Firestore — organisation and application data
 
-- Email/password authentication
-- New organisation/account creation
-- Invite-code onboarding for additional users
-- Multi-tenant organisation structure
-- Owner / Manager / Senior Care Worker / Care Worker roles
-- Firestore-backed People
-- Firestore-backed Staff
-- Firestore-backed Rota & Shifts
-- Firestore-backed Care Plans
-- Firestore-backed Incidents
-- Firestore-backed Training
-- Firestore-backed Compliance
-- Firestore-backed Documents metadata
-- Reports
-- Owner-only audit history
-- Owner team/permission management
-- Firestore Security Rules
-- Cloud Function for server-side change history
-- Firebase Hosting configuration
-- No Node.js required to run the front-end once deployed
+## Firebase setup
+1. Open the Firebase Console and use the `carehomeos` project.
+2. Enable **Authentication → Sign-in method → Email/Password**.
+3. Create **Firestore Database** in production mode.
+4. Open **Firestore Database → Rules** and paste the complete contents of `firestore.rules`, then click **Publish**.
+5. Do not upload service-account JSON/private keys to GitHub.
 
-## IMPORTANT: Firebase credentials
+The Firebase Web App configuration is already in `app.js`. If you use another Firebase project, replace the `firebaseConfig` object at the top.
 
-Do NOT put a service-account private key in this project.
+## GitHub Pages setup
+Create a GitHub repository, preferably Private while developing. Upload:
+- `index.html`
+- `app.js`
+- `styles.css`
+- `firestore.rules`
 
-The browser Firebase Web App config is designed to be included in the web application. Firebase Security Rules are what protect Firestore access. Never put Admin SDK/service-account credentials into `public/`.
+Then open **Settings → Pages** and choose **Deploy from a branch → main → /(root)**.
 
-## Setup
+Open the resulting GitHub Pages URL.
 
-### 1. Create a Firebase project
+In Firebase, open **Authentication → Settings → Authorised domains** and add your GitHub Pages host, for example `YOUR-USERNAME.github.io`.
 
-Go to the Firebase Console and create a project.
+## First account
+Choose **Create account**. The first account creates an organisation and becomes **Account Owner**.
 
-Then add a **Web App** to the project.
-
-Copy the Firebase Web App configuration.
-
-Open:
-
-`public/app.js`
-
-Find:
-
-`const firebaseConfig = { ... }`
-
-Replace the PASTE_* values with the config from your Firebase project.
-
-### 2. Enable Authentication
-
-Firebase Console:
-
-Build → Authentication → Get started → Sign-in method
-
-Enable:
-
-**Email/Password**
-
-The application uses Firebase Authentication for sign-up, sign-in and password reset.
-
-### 3. Create Firestore
-
-Firebase Console:
-
-Build → Firestore Database → Create database
-
-Use the `(default)` database.
-
-Choose the region closest to your users. For a UK care provider, choose a suitable UK/European region offered by your Firebase project.
-
-Do NOT leave a production application using unrestricted test-mode rules.
-
-### 4. Install Firebase CLI
-
-Cloud Functions and Firebase deployment require Node.js. Firebase currently supports Node.js 20 and 22 for Cloud Functions.
-
-Install Node.js 22 from nodejs.org.
-
-Then open PowerShell in this folder:
-
-`npm install -g firebase-tools`
-
-Sign in:
-
-`firebase login`
-
-### 5. Connect this folder to your Firebase project
-
-Run:
-
-`firebase use --add`
-
-Select your Firebase project.
-
-If this creates a `.firebaserc`, that's expected.
-
-### 6. Deploy Firestore rules
-
-Run:
-
-`firebase deploy --only firestore:rules`
-
-### 7. Deploy the audit function
-
-Run:
-
-`cd functions`
-
-Then:
-
-`npm install`
-
-Then:
-
-`cd ..`
-
-Then:
-
-`firebase deploy --only functions`
-
-The included Cloud Function listens for organisation record changes and writes audit entries to:
-
-`organisations/{orgId}/audit`
-
-It records create/update/delete events and attempts to identify the authenticated user from the Firebase event context.
-
-### 8. Deploy the website
-
-From the project root:
-
-`firebase deploy --only hosting`
-
-Firebase will give you a `web.app` / `firebaseapp.com` address.
-
-### 9. Create your first account
-
-Open the hosted application.
-
-Click:
-
-**Create account**
-
-Enter:
-
-- Your name
-- Work email
-- Password
-- Organisation name
-- Service type
-
-The first person creating the organisation becomes the:
-
-**Account Owner**
-
-### 10. Add other staff
-
-Log in as the owner.
-
-Open:
-
-**Team & permissions**
-
-Click:
-
-**Invite team member**
-
-Choose:
-
+## Team and permissions
+The owner can invite:
 - Registered Manager
 - Senior Care Worker
 - Care Worker
 
-CareHomeOS creates a single-use invitation code.
+The invitee creates a Firebase Authentication account with the invited email and invite code.
 
-Give that code to the invited user.
+## Scheduling
+Rota records are stored in Firestore. Add/edit operations write to the shared organisation database, so authorised users see the same records rather than browser-local copies.
 
-They choose **Create account**, use the same email address and enter the invitation code.
+## Change history
+The owner has an Audit history screen containing user, action, area, record, before data, after data and summary. Entries cannot be updated or deleted through Firestore Rules.
 
-Their account is then attached to your organisation with the selected role.
+**Important:** because this is a browser-only architecture, the change-history writer is client-side. It is not a tamper-proof server-side audit log. Do not treat it as sufficient for a real regulated care-record deployment. A production system should add a trusted backend/server-side audit mechanism.
 
-## Roles
+## No Node.js
+You do not need Node.js, npm, Firebase CLI, Cloud Functions, a local server or a build process. GitHub Pages serves the static files and Firebase is accessed directly from the browser through the Firebase Web SDK CDN.
 
-### Account Owner
-Everything, including:
-- organisation settings
-- team permissions
-- audit history
-- all operational modules
-
-### Registered Manager
-Can manage:
-- people
-- staff
-- rota
-- care plans
-- incidents
-- training
-- compliance
-- documents
-- reports
-
-Cannot manage the owner or organisation ownership.
-
-### Senior Care Worker
-Can manage:
-- people
-- rota
-- care plans
-- incidents
-- training
-- reports
-
-### Care Worker
-Can:
-- view operational records
-- view rota
-- view relevant care information
-- report incidents
-
-The exact permission model should be refined before production deployment to match the provider's service model.
-
-## Why the rota now works differently
-
-The rota no longer uses browser localStorage.
-
-When a user saves a shift:
-
-Browser
-→ Firebase Authentication
-→ Firestore Security Rules
-→ Cloud Firestore
-→ real database record
-
-Other authorised users can then see the change.
-
-This means the previous "open shift won't save" problem is not solved with another local JavaScript patch: the application now has a real persistence layer.
-
-## Audit history
-
-The account owner has an **Audit history** screen.
-
-The backend function records:
-
-- created
-- updated
-- deleted
-- user
-- collection
-- record ID
-- record label
-- changed field summary
-- before snapshot
-- after snapshot
-
-The Firestore rules make audit records read-only from the client.
-
-## Security warning
-
-This is a serious SaaS foundation, but it is NOT a completed regulated clinical production system.
-
-Before entering real care/service-user information, commission a proper security and data-protection review. This application may process health and other special-category personal data.
-
-For production, add:
-- MFA
-- email verification
-- App Check
-- secure file uploads via Firebase Storage
-- stronger password/session controls
-- formal role/least-privilege review
-- backups and disaster recovery
-- monitoring/alerting
-- retention/deletion policies
-- data export/deletion workflows
-- penetration testing
-- privacy notice and data-processing documentation
-- formal regulatory review
-- tested incident response
-
-Also review Firestore query/index requirements as the dataset grows.
-
-## Local development
-
-You can deploy with Firebase Hosting or use the Firebase Emulator Suite after installing the Firebase CLI.
-
-Do not use the local HTML file (`file://`) for the final Firebase application. Firebase Authentication and cloud resources are intended to be served through a web origin such as Firebase Hosting.
+## Production warning
+Do not enter real service-user, health, medication, safeguarding, staff HR or other confidential information into this prototype. Before production use, formally implement and test MFA, App Check, secure file storage/Storage Rules, retention/deletion, backups/disaster recovery, monitoring, trusted audit logging, security testing, DPIA and appropriate UK GDPR/care-sector controls.
