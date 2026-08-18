@@ -1,55 +1,75 @@
-# CareHomeOS — GitHub + Firebase only
+# CareHomeOS — GitHub + Firebase Only
 
-This version is deliberately static. It does not require Node.js, npm, Firebase CLI, a local server or Cloud Functions.
+This version requires **no Node.js, npm, Firebase CLI or Cloud Functions** to run the web app.
 
-## Services
-- GitHub / GitHub Pages — static hosting
-- Firebase Authentication — accounts and sign-in
-- Cloud Firestore — organisation and application data
+## Firebase project
 
-## Firebase setup
-1. Open the Firebase Console and use the `carehomeos` project.
-2. Enable **Authentication → Sign-in method → Email/Password**.
-3. Create **Firestore Database** in production mode.
-4. Open **Firestore Database → Rules** and paste the complete contents of `firestore.rules`, then click **Publish**.
-5. Do not upload service-account JSON/private keys to GitHub.
+The package is configured for the Firebase Web App:
 
-The Firebase Web App configuration is already in `app.js`. If you use another Firebase project, replace the `firebaseConfig` object at the top.
+- Project ID: `carehomeos`
+- Auth domain: `carehomeos.firebaseapp.com`
 
-## GitHub Pages setup
-Create a GitHub repository, preferably Private while developing. Upload:
+## 1. Firebase Authentication
+
+Firebase Console → **Authentication** → **Sign-in method** → enable **Email/Password**.
+
+Also check **Authentication → Settings → Authorised domains** and add your GitHub Pages domain, for example:
+
+`yourusername.github.io`
+
+If you use a custom domain, add that domain too.
+
+## 2. Firestore
+
+Firebase Console → **Firestore Database** → create the database.
+
+Then open **Firestore Database → Rules**, replace the rules with the contents of `firestore.rules`, and publish.
+
+## 3. GitHub Pages
+
+Create a repository and upload:
+
 - `index.html`
 - `app.js`
 - `styles.css`
 - `firestore.rules`
+- `.gitignore`
+- `README.md`
 
-Then open **Settings → Pages** and choose **Deploy from a branch → main → /(root)**.
+Enable GitHub Pages from **Settings → Pages → Deploy from a branch**.
 
-Open the resulting GitHub Pages URL.
+## Important account/sign-in behaviour
 
-In Firebase, open **Authentication → Settings → Authorised domains** and add your GitHub Pages host, for example `YOUR-USERNAME.github.io`.
+This version fixes a common failure in browser-only Firebase prototypes:
 
-## First account
-Choose **Create account**. The first account creates an organisation and becomes **Account Owner**.
+- Account creation validates the organisation before creating the Firebase Auth account.
+- If Firestore setup fails after Auth creation, the app attempts to roll back the newly-created Auth account instead of leaving an unusable account behind.
+- Sign-in errors are shown instead of silently failing.
+- If Auth succeeds but the Firestore workspace profile is missing, CareHomeOS shows a **Finish account setup** screen instead of immediately signing the user out.
+- If the owner member record is missing but the organisation identifies the user as owner, the app repairs that member record.
+- Firestore permission/setup errors are displayed with a useful explanation.
 
-## Team and permissions
-The owner can invite:
-- Registered Manager
-- Senior Care Worker
-- Care Worker
+## Existing account that already registered but will not enter the dashboard
 
-The invitee creates a Firebase Authentication account with the invited email and invite code.
+If an account already exists in Firebase Authentication but its CareHomeOS Firestore profile was not created, use the normal **Sign in** screen. The updated application will show a **Finish account setup** screen and let the authenticated account create its organisation/member records.
 
-## Scheduling
-Rota records are stored in Firestore. Add/edit operations write to the shared organisation database, so authorised users see the same records rather than browser-local copies.
+If the password itself is unknown, use **Forgotten password?** on the sign-in screen.
 
-## Change history
-The owner has an Audit history screen containing user, action, area, record, before data, after data and summary. Entries cannot be updated or deleted through Firestore Rules.
+## Roles
 
-**Important:** because this is a browser-only architecture, the change-history writer is client-side. It is not a tamper-proof server-side audit log. Do not treat it as sufficient for a real regulated care-record deployment. A production system should add a trusted backend/server-side audit mechanism.
+- Account Owner — full organisation access
+- Registered Manager — operational management
+- Senior Care Worker — care/rota/training/incident access
+- Care Worker — operational read access and incident reporting
 
-## No Node.js
-You do not need Node.js, npm, Firebase CLI, Cloud Functions, a local server or a build process. GitHub Pages serves the static files and Firebase is accessed directly from the browser through the Firebase Web SDK CDN.
+Firestore Security Rules enforce the organisation and role boundaries. UI permissions are not the security boundary.
 
-## Production warning
-Do not enter real service-user, health, medication, safeguarding, staff HR or other confidential information into this prototype. Before production use, formally implement and test MFA, App Check, secure file storage/Storage Rules, retention/deletion, backups/disaster recovery, monitoring, trusted audit logging, security testing, DPIA and appropriate UK GDPR/care-sector controls.
+## Audit history
+
+The owner can review change history. The browser writes audit entries to Firestore after successful creates/updates.
+
+Because this is intentionally a **GitHub Pages + Firebase client-only build**, the audit writer is client-side. This is suitable for development/prototyping but is **not a tamper-proof regulatory audit trail**. A production care system should move audit generation to trusted server-side infrastructure.
+
+## Security warning
+
+Do not enter real service-user, health, medication, safeguarding, staff HR or other confidential data into this prototype. Production use requires a proper security architecture, MFA, least-privilege rules, secure file storage, backups, monitoring, retention controls, audit design and formal UK GDPR/regulatory review.

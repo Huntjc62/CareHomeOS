@@ -74,25 +74,47 @@ function renderAuth(mode){
   <div class="field" style="margin-top:10px"><label>Invite code (optional)</label><input id="inviteCode" placeholder="If your manager invited you"></div>
   <div id="authError" class="error"></div><div class="login-actions">${btn("Create account","doSignUp()",true)}</div>`;
 }
-window.doSignIn=async()=>{try{await signInWithEmailAndPassword(auth,$("#email").value.trim(),$("#password").value);toast("Signed in")}catch(e){$("#authError").textContent=prettyError(e)}};
+window.doSignIn=async()=>{
+  const email=$("#email").value.trim().toLowerCase(), password=$("#password").value;
+  $("#authError").textContent="";
+  if(!email||!password){$("#authError").textContent="Enter your email and password.";return}
+  try{
+    await signInWithEmailAndPassword(auth,email,password);
+  }catch(e){
+    console.error("CareHomeOS sign-in error",e);
+    $("#authError").textContent=prettyError(e);
+  }
+};
 window.doSignUp=async()=>{
+ let cred=null;
  try{
    const name=$("#name").value.trim(),email=$("#email").value.trim().toLowerCase(),pass=$("#password").value,orgName=$("#orgName").value.trim(),code=$("#inviteCode").value.trim().toUpperCase();
+   $("#authError").textContent="";
+   if(!name)throw new Error("Enter your name.");
+   if(!email)throw new Error("Enter your work email.");
    if(pass.length<8)throw new Error("Use a password of at least 8 characters.");
-   const cred=await createUserWithEmailAndPassword(auth,email,pass);await updateProfile(cred.user,{displayName:name});
-   if(code){await claimInvite(cred.user,code,name)}
-   else{
-     if(!orgName)throw new Error("Enter an organisation name.");
+   if(!code && !orgName)throw new Error("Enter an organisation name.");
+   cred=await createUserWithEmailAndPassword(auth,email,pass);
+   await updateProfile(cred.user,{displayName:name});
+   if(code){
+     await claimInvite(cred.user,code,name);
+   }else{
      const orgRef=doc(collection(db,"organisations"));
      const memberRef=doc(db,`organisations/${orgRef.id}/members/${cred.user.uid}`);
+     const userRef=doc(db,"users",cred.user.uid);
      const batch=writeBatch(db);
      batch.set(orgRef,{name:orgName,serviceType:$("#serviceType").value,ownerUid:cred.user.uid,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
      batch.set(memberRef,{uid:cred.user.uid,name,email,role:"owner",status:"active",createdAt:serverTimestamp()});
+     batch.set(userRef,{uid:cred.user.uid,name,email,defaultOrgId:orgRef.id,createdAt:serverTimestamp()});
      await batch.commit();
-     await setDoc(doc(db,"users",cred.user.uid),{uid:cred.user.uid,name,email,defaultOrgId:orgRef.id,createdAt:serverTimestamp()});
    }
    toast("Account created");
- }catch(e){$("#authError").textContent=prettyError(e)}
+ }catch(e){
+   console.error("CareHomeOS sign-up error",e);
+   // Do not leave a half-created Firebase Auth account if the Firestore setup failed.
+   if(cred?.user){try{await cred.user.delete()}catch(deleteErr){console.error("Could not roll back Auth account",deleteErr)}}
+   $("#authError").textContent=prettyError(e);
+ }
 };
 async function claimInvite(user,code,name){
  const ref=doc(db,`invites/${code}`),snap=await getDoc(ref);
@@ -108,19 +130,63 @@ async function claimInvite(user,code,name){
 }
 window.resetPassword=async()=>{try{const e=$("#email").value.trim();if(!e)throw new Error("Enter your email first.");await sendPasswordResetEmail(auth,e);toast("Password reset email sent")}catch(e){$("#authError").textContent=prettyError(e)}};
 window.logout=()=>signOut(auth);
-function prettyError(e){return e.code?.includes("email-already")?"That email is already registered.":e.code?.includes("invalid-credential")?"Incorrect email or password.":e.code?.includes("weak-password")?"Password is too weak.":e.message||"Something went wrong."}
+function prettyError(e){
+ const c=e?.code||"";
+ if(c.includes("email-already"))return "That email is already registered. Use Sign in or Forgotten password instead.";
+ if(c.includes("invalid-credential")||c.includes("wrong-password")||c.includes("user-not-found"))return "Incorrect email or password.";
+ if(c.includes("invalid-email"))return "Enter a valid email address.";
+ if(c.includes("weak-password"))return "Password is too weak. Use at least 8 characters.";
+ if(c.includes("too-many-requests"))return "Too many attempts. Wait a few minutes and try again.";
+ if(c.includes("permission-denied"))return "Firebase denied access to the workspace. Make sure the latest Firestore rules are published.";
+ if(c.includes("failed-precondition"))return "Firestore needs to be enabled/configured in the Firebase project.";
+ if(c.includes("not-found"))return "The requested Firebase record was not found.";
+ return e?.message||"Something went wrong.";
+}
 
 async function loadProfile(){
  const u=state.user;
- const p=await getDoc(doc(db,"users",u.uid));state.profile=p.exists()?p.data():null;
- if(!state.profile){await signOut(auth);return}
- const orgId=state.profile.defaultOrgId;
- const o=await getDoc(doc(db,"organisations",orgId));if(!o.exists()){await signOut(auth);return}
- state.org={id:o.id,...o.data()};
- const m=await getDoc(doc(db,`organisations/${orgId}/members/${u.uid}`));
- state.role=m.exists()?m.data().role:null;
- if(!state.role){await signOut(auth);return}
- mountApp();subscribeAll();
+ try{
+   const p=await getDoc(doc(db,"users",u.uid));
+   if(!p.exists()){showAccountRecovery(u);return}
+   state.profile=p.data();
+   const orgId=state.profile.defaultOrgId;
+   if(!orgId){showAccountRecovery(u);return}
+   const o=await getDoc(doc(db,"organisations",orgId));
+   if(!o.exists()){showAccountRecovery(u);return}
+   state.org={id:o.id,...o.data()};
+   const m=await getDoc(doc(db,`organisations/${orgId}/members/${u.uid}`));
+   if(!m.exists()){
+     if(state.org.ownerUid===u.uid){
+       await setDoc(doc(db,`organisations/${orgId}/members/${u.uid}`),{uid:u.uid,name:u.displayName||state.profile.name||"Account Owner",email:u.email,role:"owner",status:"active",repairedAt:serverTimestamp()},{merge:true});
+       state.role="owner";
+     }else{showAccountRecovery(u);return}
+   }else{state.role=m.data().role}
+   if(!state.role){showAccountRecovery(u);return}
+   mountApp();subscribeAll();
+ }catch(e){
+   console.error("CareHomeOS profile load error",e);
+   showFirebaseSetupError(e);
+ }
+}
+function showAccountRecovery(u){
+ document.body.innerHTML=`<div class="login"><div class="login-box"><div class="login-brand"><div class="brand-mark">C</div><div><h1>CareHomeOS</h1><small>Finish account setup</small></div></div><p>Your Firebase login is valid, but your CareHomeOS workspace profile has not been completed.</p><div class="notice warn">This can happen if account creation was interrupted while the Firestore records were being created.</div><div class="field"><label>Organisation name</label><input id="recoverOrg" placeholder="e.g. Haven Care Group"></div><div class="field" style="margin-top:10px"><label>Service type</label><select id="recoverType"><option>Care home</option><option>Home care</option><option>Supported living</option><option>Extra care</option></select></div><div id="recoverError" class="error"></div><div class="login-actions">${btn("Complete setup","completeAccountSetup()",true)}</div><button class="link" style="margin-top:12px" onclick="signOut(auth)">Sign out</button></div></div>`;
+}
+window.completeAccountSetup=async()=>{
+ try{
+   const name=$("#recoverOrg").value.trim();if(!name)throw new Error("Enter an organisation name.");
+   const orgRef=doc(collection(db,"organisations"));
+   const memberRef=doc(db,`organisations/${orgRef.id}/members/${state.user.uid}`);
+   const userRef=doc(db,"users",state.user.uid);
+   const batch=writeBatch(db);
+   batch.set(orgRef,{name,serviceType:$("#recoverType").value,ownerUid:state.user.uid,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+   batch.set(memberRef,{uid:state.user.uid,name:state.user.displayName||"Account Owner",email:state.user.email,role:"owner",status:"active",createdAt:serverTimestamp()});
+   batch.set(userRef,{uid:state.user.uid,name:state.user.displayName||"Account Owner",email:state.user.email,defaultOrgId:orgRef.id,createdAt:serverTimestamp()},{merge:true});
+   await batch.commit();
+   await loadProfile();
+ }catch(e){console.error(e);$("#recoverError").textContent=prettyError(e)}
+};
+function showFirebaseSetupError(e){
+ document.body.innerHTML=`<div class="login"><div class="login-box"><div class="login-brand"><div class="brand-mark">C</div><div><h1>CareHomeOS</h1><small>Could not load workspace</small></div></div><div class="notice warn"><strong>Firebase connection succeeded, but Firestore rejected a workspace request.</strong></div><p style="font-size:11px">${esc(prettyError(e))}</p><p style="font-size:10px;color:#71808d">Check that Email/Password Authentication is enabled, Firestore exists, and the latest <b>firestore.rules</b> have been published to the same <b>carehomeos</b> Firebase project.</p><div class="modal-actions">${btn("Sign out","signOut(auth)",true)}</div></div></div>`;
 }
 function mountApp(){
  document.body.innerHTML=`<div id="shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">C</div><div><strong>CareHomeOS</strong><small>Care operations</small></div></div><div class="workspace"><span class="eyebrow">WORKSPACE</span><button class="workspace-btn"><span class="avatar sm">${initials(state.org.name)}</span><b>${esc(state.org.name)}</b><span>⌄</span></button></div><nav class="nav">${navItems.map(x=>`<button data-view="${x[0]}"><span>${x[1]}</span>${x[2]}</button>`).join("")}</nav><div class="side-foot"><div class="help"><span class="avatar sm">?</span><div><strong>Need help?</strong><small>Support centre</small></div></div><div class="user"><span class="avatar">${initials(state.profile.name)}</span><div><strong>${esc(state.profile.name)}</strong><small>${roleLabel(state.role)}</small></div><button onclick="logout()">↗</button></div></div></aside><main class="main"><header class="top"><button class="icon mobile" id="mobileMenu">☰</button><div class="crumb"><span>${esc(state.org.name)}</span><b>/</b><strong id="title">Overview</strong></div><div class="top-actions"><button class="icon" onclick="globalSearch()">⌕</button><button class="icon bell" onclick="notifications()">♧<i>4</i></button><span class="date" id="today"></span></div></header><section class="content" id="content"></section></main></div>`;
