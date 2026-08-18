@@ -65,7 +65,8 @@ function renderAuth(mode){
   <div class="field"><label>Email</label><input id="email" type="email" autocomplete="email"></div>
   <div class="field" style="margin-top:10px"><label>Password</label><input id="password" type="password" autocomplete="current-password"></div>
   <div id="authError" class="error"></div><div class="login-actions">${btn("Sign in","doSignIn()",true)}</div>
-  <button class="link" style="margin-top:12px" onclick="resetPassword()">Forgotten password?</button>`:
+  <button class="link" style="margin-top:12px" onclick="resetPassword()">Forgotten password?</button>
+  <button class="link" style="margin-top:8px" onclick="showAuthDiagnostics()">Having trouble signing in?</button>`:
   `<div class="field"><label>Your name</label><input id="name"></div>
   <div class="field" style="margin-top:10px"><label>Work email</label><input id="email" type="email"></div>
   <div class="field" style="margin-top:10px"><label>Password</label><input id="password" type="password" minlength="8"></div>
@@ -85,6 +86,7 @@ window.doSignIn=async()=>{
     $("#authError").textContent=prettyError(e);
   }
 };
+window.showAuthDiagnostics=()=>{const host=location.hostname||"(local file)";showModal(`<h2>Sign-in diagnostics</h2><p class="sub">Check these values in Firebase.</p><div class="list"><div class="row"><div class="rowmain"><strong>Website domain</strong><small>${esc(host)}</small></div></div><div class="row"><div class="rowmain"><strong>Firebase project</strong><small>carehomeos</small></div></div><div class="row"><div class="rowmain"><strong>SDK</strong><small>${auth?.config?.apiKey?"Loaded":"Not loaded"}</small></div></div></div><div class="notice info"><strong>Most common fix:</strong> Firebase Console → Authentication → Settings → Authorised domains → add <b>${esc(host)}</b>. Then Authentication → Sign-in method → enable Email/Password.</div><div class="modal-actions">${btn("Close","closeModal()")}</div>`)};
 window.doSignUp=async()=>{
  let cred=null;
  try{
@@ -133,7 +135,12 @@ window.logout=()=>signOut(auth);
 function prettyError(e){
  const c=e?.code||"";
  if(c.includes("email-already"))return "That email is already registered. Use Sign in or Forgotten password instead.";
- if(c.includes("invalid-credential")||c.includes("wrong-password")||c.includes("user-not-found"))return "Incorrect email or password.";
+ if(c.includes("invalid-credential")||c.includes("wrong-password")||c.includes("user-not-found"))return "Incorrect email or password. If you are certain they are correct, check that this GitHub site is authorised in Firebase Authentication.";
+ if(c.includes("operation-not-allowed"))return "Email/password sign-in is disabled. Firebase Console → Authentication → Sign-in method → Email/Password → Enable.";
+ if(c.includes("unauthorized-domain"))return "This website domain is not authorised. Firebase Console → Authentication → Settings → Authorised domains → add your GitHub Pages domain (for example yourname.github.io).";
+ if(c.includes("network-request-failed"))return "Firebase could not be reached. Check your internet connection and GitHub Pages HTTPS address.";
+ if(c.includes("invalid-api-key"))return "The Firebase Web App configuration is invalid. Check the configuration in app.js.";
+ if(c.includes("project-not-found"))return "The Firebase project could not be found. Check that the project ID is carehomeos.";
  if(c.includes("invalid-email"))return "Enter a valid email address.";
  if(c.includes("weak-password"))return "Password is too weak. Use at least 8 characters.";
  if(c.includes("too-many-requests"))return "Too many attempts. Wait a few minutes and try again.";
@@ -169,7 +176,7 @@ async function loadProfile(){
  }
 }
 function showAccountRecovery(u){
- document.body.innerHTML=`<div class="login"><div class="login-box"><div class="login-brand"><div class="brand-mark">C</div><div><h1>CareHomeOS</h1><small>Finish account setup</small></div></div><p>Your Firebase login is valid, but your CareHomeOS workspace profile has not been completed.</p><div class="notice warn">This can happen if account creation was interrupted while the Firestore records were being created.</div><div class="field"><label>Organisation name</label><input id="recoverOrg" placeholder="e.g. Haven Care Group"></div><div class="field" style="margin-top:10px"><label>Service type</label><select id="recoverType"><option>Care home</option><option>Home care</option><option>Supported living</option><option>Extra care</option></select></div><div id="recoverError" class="error"></div><div class="login-actions">${btn("Complete setup","completeAccountSetup()",true)}</div><button class="link" style="margin-top:12px" onclick="signOut(auth)">Sign out</button></div></div>`;
+ document.body.innerHTML=`<div class="login"><div class="login-box"><div class="login-brand"><div class="brand-mark">C</div><div><h1>CareHomeOS</h1><small>Finish account setup</small></div></div><p>Your Firebase login is valid, but your CareHomeOS workspace profile has not been completed.</p><div class="notice warn">This can happen if account creation was interrupted while the Firestore records were being created.</div><div class="field"><label>Organisation name</label><input id="recoverOrg" placeholder="e.g. Haven Care Group"></div><div class="field" style="margin-top:10px"><label>Service type</label><select id="recoverType"><option>Care home</option><option>Home care</option><option>Supported living</option><option>Extra care</option></select></div><div id="recoverError" class="error"></div><div class="login-actions">${btn("Complete setup","completeAccountSetup()",true)}</div><button class="link" style="margin-top:12px" onclick="logout()">Sign out</button></div></div>`;
 }
 window.completeAccountSetup=async()=>{
  try{
